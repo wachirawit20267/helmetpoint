@@ -1,83 +1,65 @@
 import Link from "next/link";
+import Button from "@/components/ui/Button";
 
 export default function Hero() {
   return (
-    <section className="relative overflow-hidden">
+    <section className="bg-gradient-to-br from-slate-50 via-white to-orange-50">
+      <div className="mx-auto grid min-h-[85vh] max-w-7xl grid-cols-1 items-center gap-12 px-6 py-20 lg:grid-cols-2">
 
-      <div className="absolute inset-0 bg-gradient-to-br from-orange-100 via-white to-blue-100" />
+        {/* Left */}
+        <div>
+          <span className="inline-block rounded-full bg-orange-100 px-4 py-2 text-sm font-semibold text-orange-600">
+            🪖 AI • IoT • GPS Tracking
+          </span>
 
-      <div className="relative max-w-7xl mx-auto px-6 py-24">
+          <h1 className="mt-6 text-5xl font-extrabold leading-tight text-slate-900 md:text-7xl">
+            HelmetPoint
+          </h1>
 
-        <div className="grid lg:grid-cols-2 gap-16 items-center">
+          <h2 className="mt-4 text-2xl font-semibold text-slate-600 md:text-3xl">
+            Smart Helmet
+            <br />
+            Smart Safety
+          </h2>
 
-          {/* Left */}
+          <p className="mt-6 max-w-xl text-lg leading-8 text-slate-500">
+            ระบบหมวกนิรภัยอัจฉริยะสำหรับติดตามตำแหน่ง วิเคราะห์การขับขี่
+            ตรวจจับอุบัติเหตุ และแจ้งเหตุฉุกเฉินแบบเรียลไทม์
+          </p>
 
-          <div>
+          <div className="mt-10 flex flex-wrap gap-4">
+            <Link href="/register">
+              <Button>เริ่มต้นใช้งาน</Button>
+            </Link>
 
-            <span className="inline-flex px-4 py-2 rounded-full bg-orange-100 text-orange-600 font-medium">
-              🚀 Smart Helmet Platform
-            </span>
-
-            <h1 className="text-6xl font-bold mt-6 leading-tight">
-
-              สวมหมวกทุกครั้ง
-
-              <br />
-
-              <span className="text-orange-500">
-                ทุกกิโลเมตรมีคุณค่า
-              </span>
-
-            </h1>
-
-            <p className="text-gray-600 mt-8 text-lg leading-8">
-
-              ระบบส่งเสริมการสวมหมวกกันน็อก
-              ตรวจสอบการสวมหมวกด้วย IoT
-              พร้อมสะสมคะแนนจากระยะทางการเดินทาง
-
-            </p>
-
-            <div className="flex gap-4 mt-10">
-
-              <Link
-                href="/register"
-                className="px-8 py-4 rounded-2xl bg-orange-500 text-white font-semibold hover:bg-orange-600 transition"
-              >
-                เริ่มต้นใช้งาน
-              </Link>
-
-              <Link
-                href="#features"
-                className="px-8 py-4 rounded-2xl border border-gray-300 hover:bg-gray-100 transition"
-              >
-                เรียนรู้เพิ่มเติม
-              </Link>
-
-            </div>
-
+            <Link href="/login">
+              <Button variant="outline">
+                เข้าสู่ระบบ
+              </Button>
+            </Link>
           </div>
 
-          {/* Right */}
-
-          <div className="flex justify-center">
-
-            <div className="w-[500px] h-[500px] rounded-full bg-gradient-to-br from-orange-300 to-blue-300 opacity-40 blur-3xl absolute" />
-
-            <div className="relative w-96 h-96 rounded-[40px] bg-white shadow-2xl flex items-center justify-center">
-
-              <span className="text-8xl">
-                🪖
-              </span>
-
-            </div>
-
+          <div className="mt-10 flex flex-wrap gap-6 text-sm text-slate-600">
+            <span>📍 GPS Tracking</span>
+            <span>🚨 SOS Alert</span>
+            <span>🪖 Smart Helmet</span>
           </div>
-
         </div>
 
-      </div>
+        <div className="flex items-center justify-center">
+  <div className="flex h-96 w-96 items-center justify-center rounded-full border-4 border-dashed border-orange-300 bg-orange-50 text-center">
+    <div>
+      <p className="text-6xl">🪖</p>
+      <p className="mt-4 text-slate-500">
+        Smart Helmet Image
+        <br />
+        (Coming Soon)
+      </p>
+    </div>
+  </div>
+</div>
 
+      </div>
     </section>
   );
 }
