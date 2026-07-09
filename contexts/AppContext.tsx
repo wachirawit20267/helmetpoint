@@ -11,8 +11,6 @@ import {
   collection, 
   query, 
   orderBy, 
-  limit, 
-  getDocs, 
   addDoc 
 } from "firebase/firestore";
 import { loginUser as firebaseLogin, registerUser as firebaseRegister, logoutUser as firebaseLogout } from "@/services/auth";
@@ -221,10 +219,9 @@ interface AppContextProps {
   clearNotifications: () => void;
   history: TripRecord[];
   setHistory: React.Dispatch<React.SetStateAction<TripRecord[]>>;
-  loginWithOtp: (emailOrPhone: string, otp: string) => Promise<boolean>;
-  sendMockOtp: (emailOrPhone: string) => void;
-  mockRegister: (profile: UserProfile) => Promise<void>;
-  mockLogout: () => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  register: (profile: UserProfile & { password?: string }) => Promise<void>;
+  logout: () => Promise<void>;
   connectHelmet: (id?: string) => Promise<void>;
   disconnectHelmet: () => void;
   restartHelmet: () => Promise<void>;
@@ -232,7 +229,6 @@ interface AppContextProps {
   triggerCrash: () => void;
   updateProfilePhoto: (base64Image: string) => Promise<void>;
   t: (key: keyof typeof translations["th"]) => string;
-  activeOtpCode: string;
 }
 
 const AppContext = createContext<AppContextProps | undefined>(undefined);
@@ -247,19 +243,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [helmetStatus, setHelmetStatus] = useState<HelmetStatusType>("disconnected");
   const [helmetData, setHelmetData] = useState<HelmetData>({
     helmetId: "",
-    firmware: "v1.0.4",
-    battery: 100,
-    signal: "Good (-65 dBm)",
+    firmware: "",
+    battery: 0,
+    signal: "",
     gps: { lat: 13.7563, lng: 100.5018 },
     distance: 0,
     speed: 0,
     crashDetect: false,
-    helmetWear: true,
+    helmetWear: false,
     time: "",
   });
-
-  // OTP support state
-  const [activeOtpCode, setActiveOtpCode] = useState("");
 
   // Notifications State
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -323,18 +316,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           }
         });
 
-        // Listen to Trip History
+        // Listen to Trip History (real data only — no fallback demo trips)
         const tripsQuery = query(collection(db, "users", fbUser.uid, "trips"), orderBy("date", "desc"));
         const unsubTrips = onSnapshot(tripsQuery, (snap) => {
           const trips: TripRecord[] = [];
           snap.forEach((docSnap) => {
             trips.push({ id: docSnap.id, ...docSnap.data() } as TripRecord);
           });
-          setHistory(trips.length > 0 ? trips : [
-            { id: "1", date: "2026-07-08", time: "08:15 - 08:45", distance: 12.4, score: 98, avgSpeed: 42, status: "completed" },
-            { id: "2", date: "2026-07-07", time: "17:30 - 18:10", distance: 15.1, score: 94, avgSpeed: 38, status: "completed" },
-            { id: "3", date: "2026-07-06", time: "12:00 - 12:25", distance: 8.2, score: 72, avgSpeed: 45, status: "alert" }
-          ]);
+          setHistory(trips);
         });
 
         return () => {
@@ -344,6 +333,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       } else {
         setUser(null);
         setHelmetStatus("off");
+        setHistory([]);
       }
     });
 
@@ -380,14 +370,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             return nextData;
           });
         } else {
-          // Initialize empty record if helmet not existing in DB yet
+          // Initialize fresh record for a newly registered helmet (all zeros — no demo data)
           setDoc(helmetDocRef, {
-            battery: 87,
+            battery: 0,
             gps: { lat: 13.7563, lng: 100.5018 },
-            distance: 1256.25,
+            distance: 0,
             speed: 0,
             crashDetect: false,
-            helmetWear: true,
+            helmetWear: false,
             updatedAt: new Date().toISOString()
           });
         }
@@ -471,63 +461,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(scoreTimer);
   }, [helmetStatus, helmetData.speed, helmetData.helmetWear, helmetData.crashDetect, helmetData.distance]);
 
-
-
   const clearNotifications = () => setNotifications([]);
 
-  // Send Simulated OTP to email/phone
-  const sendMockOtp = (emailOrPhone: string) => {
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    setActiveOtpCode(otp);
-    addNotification(`🔑 รหัส OTP ของคุณคือ: ${otp}`, "success");
-  };
+  // ── Real Auth Operations ─────────────────────────────────────────────
 
-  // Auth Operations
-  const loginWithOtp = async (emailOrPhone: string, otp: string) => {
-    if (otp !== activeOtpCode && otp !== "123456") {
-      throw new Error("รหัส OTP ไม่ถูกต้อง");
-    }
-    
-    const contact = emailOrPhone.trim();
-    
-    // Query users collection in Firestore to find user by email or phone
-    const usersRef = collection(db, "users");
-    const q = query(usersRef);
-    const querySnapshot = await getDocs(q);
-    
-    let matchedUser: any = null;
-    querySnapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      if (
-        data.email?.toLowerCase() === contact.toLowerCase() ||
-        data.phone?.replace(/\D/g, "") === contact.replace(/\D/g, "")
-      ) {
-        matchedUser = data;
-      }
-    });
-
-    if (!matchedUser) {
-      throw new Error("auth/user-not-found");
-    }
-
-    const email = matchedUser.email;
-    const password = matchedUser.password || "default123456"; // Fallback to default
-    
+  const login = async (email: string, password: string) => {
     await firebaseLogin(email, password);
-    return true;
   };
 
-  const mockRegister = async (profile: UserProfile) => {
-    await firebaseRegister({
-      ...profile,
-      email: profile.email.includes("@") ? profile.email : `${profile.phone.replace(/\D/g, "")}@helmetpoint.com`
-    });
+  const register = async (profile: UserProfile & { password?: string }) => {
+    await firebaseRegister(profile);
   };
 
-  const mockLogout = async () => {
+  const logout = async () => {
     await firebaseLogout();
     setUser(null);
     setHelmetStatus("off");
+    setHistory([]);
   };
 
   // Helmet Bindings
@@ -545,8 +495,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setHelmetData((prev) => ({
       ...prev,
       helmetId: targetId,
-      battery: 100,
-      helmetWear: true,
     }));
     addNotification("🟢 Helmet Connected", "success");
   };
@@ -626,10 +574,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         clearNotifications,
         history,
         setHistory,
-        loginWithOtp,
-        sendMockOtp,
-        mockRegister,
-        mockLogout,
+        login,
+        register,
+        logout,
         connectHelmet,
         disconnectHelmet,
         restartHelmet,
@@ -637,7 +584,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         triggerCrash,
         updateProfilePhoto,
         t,
-        activeOtpCode,
       }}
     >
       {children}

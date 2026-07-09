@@ -243,13 +243,13 @@ export default function DashboardPage() {
                   <AnimatedCounter value={safetyScore} suffix=" คะแนน" />
                 </div>
                 {helmetData.speed > 80 && (
-                  <p className="text-[10px] text-red-500 font-bold mt-2 animate-pulse">
-                    ⚠ ความเร็วเกิน 80 กม./ชม. คะแนนกำลังลดลง!
+                  <p className="text-[10px] text-amber-500 font-bold mt-2 animate-pulse">
+                    ⚠ ความเร็วเกิน 80 กม./ชม. — หัก -1 คะแนน
                   </p>
                 )}
                 {!helmetData.helmetWear && helmetData.speed > 0 && (
-                  <p className="text-[10px] text-red-500 font-bold mt-2 animate-pulse">
-                    ⚠ ไม่สวมใส่หมวกขณะขับขี่ คะแนนกำลังลดลง!
+                  <p className="text-[10px] text-blue-500 font-bold mt-2">
+                    🪖 แนะนำสวมหมวกกันน็อกเพื่อรับคะแนนโบนัส
                   </p>
                 )}
               </div>

@@ -3,6 +3,8 @@
 import { useState } from "react";
 import AppLayout from "@/components/layout/AppLayout";
 import { useApp } from "@/contexts/AppContext";
+import { auth } from "@/lib/firebase";
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
 
 // Rank cutoff data
 const RANK_TIERS = [
@@ -37,7 +39,7 @@ const USER_MANUAL_STEPS = [
 type GuideModal = "none" | "manual" | "score" | "rank";
 
 export default function SettingsPage() {
-  const { language, setLanguage, theme, setTheme, mockLogout, t } = useApp();
+  const { language, setLanguage, theme, setTheme, logout, t } = useApp();
   const router_push = (path: string) => window.location.assign(path);
 
   const [currentPw, setCurrentPw] = useState("");
@@ -47,7 +49,7 @@ export default function SettingsPage() {
   const [error, setError] = useState("");
   const [guideModal, setGuideModal] = useState<GuideModal>("none");
 
-  const handlePasswordChange = (e: React.FormEvent) => {
+  const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     setMsg(""); setError("");
     if (!currentPw || !newPw || !confirmPw) {
@@ -58,13 +60,36 @@ export default function SettingsPage() {
       setError(language === "th" ? "รหัสผ่านใหม่ไม่ตรงกัน" : "New passwords do not match");
       return;
     }
-    setMsg(t("saveSuccess"));
-    setCurrentPw(""); setNewPw(""); setConfirmPw("");
-    setTimeout(() => setMsg(""), 3000);
+    if (newPw.length < 6) {
+      setError("รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร");
+      return;
+    }
+    const fbUser = auth.currentUser;
+    if (!fbUser || !fbUser.email) {
+      setError("ไม่พบข้อมูลผู้ใช้งาน กรุณาเข้าสู่ระบบใหม่");
+      return;
+    }
+    try {
+      // Re-authenticate before changing password (Firebase requirement)
+      const credential = EmailAuthProvider.credential(fbUser.email, currentPw);
+      await reauthenticateWithCredential(fbUser, credential);
+      await updatePassword(fbUser, newPw);
+      setMsg(t("saveSuccess"));
+      setCurrentPw(""); setNewPw(""); setConfirmPw("");
+      setTimeout(() => setMsg(""), 3000);
+    } catch (err: any) {
+      let errMsg = err.message || "เกิดข้อผิดพลาด";
+      if (errMsg.includes("auth/wrong-password") || errMsg.includes("auth/invalid-credential")) {
+        errMsg = "รหัสผ่านปัจจุบันไม่ถูกต้อง";
+      } else if (errMsg.includes("auth/too-many-requests")) {
+        errMsg = "พยายามหลายครั้งเกินไป กรุณารอสักครู่";
+      }
+      setError(errMsg);
+    }
   };
 
   const handleLogout = async () => {
-    await mockLogout();
+    await logout();
     router_push("/login");
   };
 
