@@ -29,11 +29,11 @@ export async function registerUser(
     career: profile.career,
     email: profile.email,
     phone: profile.phone,
-    password: profile.password, // Saved in Firestore to support OTP auto-sign-in fallback
     helmetId: "", 
     photoURL: "", 
     points: 100, 
-    safetyScore: 100, 
+    safetyScore: 100,
+    distance: 0,
     createdAt: new Date().toISOString(),
   };
 

@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import AppLayout from "@/components/layout/AppLayout";
 import { useApp, UserProfile } from "@/contexts/AppContext";
+import { auth, db } from "@/lib/firebase";
+import { doc, updateDoc } from "firebase/firestore";
 
 export default function ProfilePage() {
   const { user, setUser, updateProfilePhoto, t } = useApp();
@@ -52,7 +54,12 @@ export default function ProfilePage() {
     e.preventDefault();
     setSuccessMsg("");
 
-    const updatedProfile: UserProfile = {
+    if (!auth.currentUser) {
+      setSuccessMsg("กรุณาเข้าสู่ระบบก่อน");
+      return;
+    }
+
+    const updatedFields = {
       firstName,
       lastName,
       birthday,
@@ -62,10 +69,14 @@ export default function ProfilePage() {
       photoURL,
     };
 
-    setUser(updatedProfile);
-    localStorage.setItem("user", JSON.stringify(updatedProfile));
-    setSuccessMsg(t("saveSuccess"));
-    setTimeout(() => setSuccessMsg(""), 3000);
+    try {
+      // Save to Firestore — onSnapshot in AppContext will auto-update user state
+      await updateDoc(doc(db, "users", auth.currentUser.uid), updatedFields);
+      setSuccessMsg(t("saveSuccess"));
+      setTimeout(() => setSuccessMsg(""), 3000);
+    } catch (err: any) {
+      setSuccessMsg("เกิดข้อผิดพลาด: " + (err.message || "ไม่สามารถบันทึกได้"));
+    }
   };
 
   return (

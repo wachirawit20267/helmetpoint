@@ -287,7 +287,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user?.safetyScore]);
 
-  // On mount session management & default configs
+  // Stable refs for Firestore listeners (so we can clean them up when auth state changes)
+  const unsubProfileRef = useRef<(() => void) | null>(null);
+  const unsubTripsRef = useRef<(() => void) | null>(null);
+
+  // On mount session management & default configs — runs ONCE only
   useEffect(() => {
     const savedLang = localStorage.getItem("lang") as LanguageType;
     if (savedLang) setLanguageState(savedLang);
@@ -298,47 +302,57 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       document.documentElement.classList.toggle("dark", savedTheme === "dark");
     }
 
-    // Auth Session listener
-    const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
+    // Auth Session listener — stable, mounted only once
+    const unsubscribeAuth = onAuthStateChanged(auth, (fbUser) => {
+      // Always clean up previous Firestore listeners first
+      if (unsubProfileRef.current) { unsubProfileRef.current(); unsubProfileRef.current = null; }
+      if (unsubTripsRef.current)   { unsubTripsRef.current();   unsubTripsRef.current = null;   }
+
       if (fbUser) {
         // Listen to Firestore profile
         const userDocRef = doc(db, "users", fbUser.uid);
-        const unsubProfile = onSnapshot(userDocRef, (snap) => {
+        unsubProfileRef.current = onSnapshot(userDocRef, (snap) => {
           if (snap.exists()) {
             const data = snap.data() as UserProfile;
             setUser(data);
-            
-            // Auto connect helmet if bound
-            if (data.helmetId && helmetStatus === "disconnected") {
-              setHelmetStatus("connected");
-              setHelmetData(prev => ({ ...prev, helmetId: data.helmetId! }));
-            }
+            // Auto-reconnect helmet if the user's profile has a helmetId
+            setHelmetStatus((prev) => {
+              if (data.helmetId && (prev === "disconnected" || prev === "off")) {
+                setHelmetData((pd) => ({ ...pd, helmetId: data.helmetId! }));
+                return "connected";
+              }
+              return prev;
+            });
           }
         });
 
-        // Listen to Trip History (real data only — no fallback demo trips)
-        const tripsQuery = query(collection(db, "users", fbUser.uid, "trips"), orderBy("date", "desc"));
-        const unsubTrips = onSnapshot(tripsQuery, (snap) => {
+        // Listen to Trip History (real data only)
+        const tripsQuery = query(
+          collection(db, "users", fbUser.uid, "trips"),
+          orderBy("date", "desc")
+        );
+        unsubTripsRef.current = onSnapshot(tripsQuery, (snap) => {
           const trips: TripRecord[] = [];
           snap.forEach((docSnap) => {
             trips.push({ id: docSnap.id, ...docSnap.data() } as TripRecord);
           });
           setHistory(trips);
         });
-
-        return () => {
-          unsubProfile();
-          unsubTrips();
-        };
       } else {
+        // Logged out — clear all state
         setUser(null);
         setHelmetStatus("off");
         setHistory([]);
       }
     });
 
-    return () => unsubscribeAuth();
-  }, [helmetStatus]);
+    return () => {
+      unsubscribeAuth();
+      if (unsubProfileRef.current) unsubProfileRef.current();
+      if (unsubTripsRef.current)   unsubTripsRef.current();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // ← mount ONCE only — no dependency on helmetStatus
 
   // Telemetry document listener when a helmet connects
   useEffect(() => {
