@@ -60,8 +60,8 @@ export default function DashboardPage() {
   // Get dynamic Safety Score (starts at 100)
   const safetyScore = user?.safetyScore ?? 100;
   
-  // Calculate Rank Points (starts at 100 points, increases based on safe riding distance)
-  const rankPoints = Math.round(100 + (helmetData.distance * 10));
+  // Get Rank Points directly from user profile database
+  const rankPoints = user?.points ?? 100;
 
   // Calculate Rank name, color, and badge based on accumulated rankPoints
   const getRankInfoByPoints = (points: number) => {

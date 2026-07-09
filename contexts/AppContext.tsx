@@ -448,6 +448,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const writeOp = updateDoc(userDocRef, {
           safetyScore: score,
           points: currentPoints,
+          distance: helmetData.distance,
         });
         await Promise.race([
           writeOp,

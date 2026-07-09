@@ -1,12 +1,15 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import AppLayout from "@/components/layout/AppLayout";
 import { useApp } from "@/contexts/AppContext";
+import { db, auth } from "@/lib/firebase";
+import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
 
 interface LeaderboardUser {
   rank: number;
   name: string;
-  points: number;   // Accumulated rank points (100 + distance*10)
+  points: number;   // Accumulated rank points
   score: number;    // Safety score 0-100
   badge: string;
   distance: number; // Total km
@@ -26,30 +29,86 @@ function getBadgeFromPoints(points: number): string {
 
 export default function RankingPage() {
   const { user } = useApp();
+  const [topRiders, setTopRiders] = useState<LeaderboardUser[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Mock top riders — TOP 20 only
-  const topRiders: LeaderboardUser[] = [
-    { rank: 1,  name: "สมชาย ยอดรัก",       points: 6820, score: 99, badge: "Legend",   distance: 682.0 },
-    { rank: 2,  name: "กิตติพงษ์ ใจงาม",     points: 5930, score: 98, badge: "Legend",   distance: 593.0 },
-    { rank: 3,  name: "อัญชลี ศรีสุข",       points: 5210, score: 98, badge: "Legend",   distance: 521.0 },
-    { rank: 4,  name: "สิทธิพงษ์ มั่นคง",    points: 4550, score: 96, badge: "Champion", distance: 455.0 },
-    { rank: 5,  name: "นารี รัตน์ดาว",       points: 3980, score: 95, badge: "Champion", distance: 398.0 },
-    { rank: 6,  name: "วิทยา เปรื่องไกร",    points: 3120, score: 93, badge: "Champion", distance: 312.0 },
-    { rank: 7,  name: "ภานุเดช แสงอรุณ",     points: 2750, score: 91, badge: "Champion", distance: 275.0 },
-    { rank: 8,  name: "รพีภัทร วัฒนา",       points: 2100, score: 89, badge: "Champion", distance: 210.0 },
-    { rank: 9,  name: "อรัญญา ปัญญาเลิศ",    points: 1820, score: 87, badge: "Master",   distance: 182.0 },
-    { rank: 10, name: "พิมพิศา นามสมมุติ",   points: 1540, score: 85, badge: "Master",   distance: 154.0 },
-    { rank: 11, name: "ณัฐพล เจริญทรัพย์",   points: 1350, score: 84, badge: "Master",   distance: 135.0 },
-    { rank: 12, name: `${user?.firstName || "วชิรวิทย์"} ${user?.lastName || "สมบูรณ์"}`, points: 1156, score: 95, badge: "Master", distance: 105.6, isSelf: true },
-    { rank: 13, name: "ณรงค์เดช เกียรติคุณ", points: 1020, score: 82, badge: "Master",   distance: 102.0 },
-    { rank: 14, name: "จักรภัทร เทพสถิตย์",  points: 870,  score: 80, badge: "Diamond",  distance: 87.0 },
-    { rank: 15, name: "มนัสวี อานนท์",        points: 760,  score: 78, badge: "Diamond",  distance: 76.0 },
-    { rank: 16, name: "ปัทมา จิรวัฒน์",       points: 640,  score: 76, badge: "Diamond",  distance: 64.0 },
-    { rank: 17, name: "ธนภัทร สมใจ",         points: 520,  score: 74, badge: "Gold",     distance: 52.0 },
-    { rank: 18, name: "กุลธิดา บุปผา",        points: 430,  score: 72, badge: "Gold",     distance: 43.0 },
-    { rank: 19, name: "อภิวัฒน์ พงษ์ไพร",    points: 340,  score: 70, badge: "Gold",     distance: 34.0 },
-    { rank: 20, name: "ศิริพร เดชชัย",        points: 250,  score: 68, badge: "Silver",   distance: 25.0 },
-  ];
+  useEffect(() => {
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, orderBy("points", "desc"), limit(20));
+
+    const unsub = onSnapshot(q, (snap) => {
+      const realUsers: LeaderboardUser[] = [];
+      const currentUid = auth.currentUser?.uid;
+
+      snap.forEach((docSnap) => {
+        const data = docSnap.data();
+        const firstName = data.firstName || "ผู้ใช้งาน";
+        const lastName = data.lastName || "";
+        const fullName = `${firstName} ${lastName}`.trim();
+
+        realUsers.push({
+          rank: 0, // Assigned dynamically after merging/sorting
+          name: fullName,
+          points: data.points ?? 100,
+          score: data.safetyScore ?? 100,
+          badge: getBadgeFromPoints(data.points ?? 100),
+          distance: Number((data.distance ?? 0).toFixed(1)),
+          isSelf: docSnap.id === currentUid,
+        });
+      });
+
+      // Template riders for mock backup to populate empty lists beautifully
+      const mockRidersTemplate: Omit<LeaderboardUser, "rank">[] = [
+        { name: "สมชาย ยอดรัก",       points: 6820, score: 99, badge: "Legend",   distance: 682.0 },
+        { name: "กิตติพงษ์ ใจงาม",     points: 5930, score: 98, badge: "Legend",   distance: 593.0 },
+        { name: "อัญชลี ศรีสุข",       points: 5210, score: 98, badge: "Legend",   distance: 521.0 },
+        { name: "สิทธิพงษ์ มั่นคง",    points: 4550, score: 96, badge: "Champion", distance: 455.0 },
+        { name: "นารี รัตน์ดาว",       points: 3980, score: 95, badge: "Champion", distance: 398.0 },
+        { name: "วิทยา เปรื่องไกร",    points: 3120, score: 93, badge: "Champion", distance: 312.0 },
+        { name: "ภานุเดช แสงอรุณ",     points: 2750, score: 91, badge: "Champion", distance: 275.0 },
+        { name: "รพีภัทร วัฒนา",       points: 2100, score: 89, badge: "Champion", distance: 210.0 },
+        { name: "อรัญญา ปัญญาเลิศ",    points: 1820, score: 87, badge: "Master",   distance: 182.0 },
+        { name: "พิมพิศา นามสมมุติ",   points: 1540, score: 85, badge: "Master",   distance: 154.0 },
+        { name: "ณัฐพล เจริญทรัพย์",   points: 1350, score: 84, badge: "Master",   distance: 135.0 },
+        { name: "ณรงค์เดช เกียรติคุณ", points: 1020, score: 82, badge: "Master",   distance: 102.0 },
+        { name: "จักรภัทร เทพสถิตย์",  points: 870,  score: 80, badge: "Diamond",  distance: 87.0 },
+        { name: "มนัสวี อานนท์",        points: 760,  score: 78, badge: "Diamond",  distance: 76.0 },
+        { name: "ปัทมา จิรวัฒน์",       points: 640,  score: 76, badge: "Diamond",  distance: 64.0 },
+        { name: "ธนภัทร สมใจ",         points: 520,  score: 74, badge: "Gold",     distance: 52.0 },
+        { name: "กุลธิดา บุปผา",        points: 430,  score: 72, badge: "Gold",     distance: 43.0 },
+        { name: "อภิวัฒน์ พงษ์ไพร",    points: 340,  score: 70, badge: "Gold",     distance: 34.0 },
+        { name: "ศิริพร เดชชัย",        points: 250,  score: 68, badge: "Silver",   distance: 25.0 }
+      ];
+
+      // Merge & Deduplicate lists using the names
+      const realUserNames = new Set(realUsers.map(u => u.name));
+      const mergedList = [...realUsers];
+
+      mockRidersTemplate.forEach(mock => {
+        if (!realUserNames.has(mock.name)) {
+          mergedList.push({
+            rank: 0,
+            ...mock,
+            isSelf: false
+          });
+        }
+      });
+
+      // Sort by points desc
+      mergedList.sort((a, b) => b.points - a.points);
+
+      // Re-assign ranks 1 to N
+      const rankedList = mergedList.map((rider, index) => ({
+        ...rider,
+        rank: index + 1
+      }));
+
+      setTopRiders(rankedList.slice(0, 20));
+      setLoading(false);
+    });
+
+    return () => unsub();
+  }, [user]);
 
   const getRankMedal = (rankNumber: number) => {
     if (rankNumber === 1) return "🥇";
@@ -70,9 +129,14 @@ export default function RankingPage() {
     }
   };
 
+  // Locate current user in list, or construct fallback if not yet synced/merged
   const selfRecord = topRiders.find((r) => r.isSelf) || {
-    rank: 12, name: `${user?.firstName || ""} ${user?.lastName || ""}`,
-    points: 1156, score: 95, badge: "Master", distance: 105.6,
+    rank: topRiders.length + 1,
+    name: `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || "ผู้ใช้งาน",
+    points: user?.points ?? 100,
+    score: user?.safetyScore ?? 100,
+    badge: getBadgeFromPoints(user?.points ?? 100),
+    distance: user?.distance ?? 0,
   };
 
   return (
@@ -118,59 +182,63 @@ export default function RankingPage() {
           </div>
 
           <div className="space-y-2 max-h-[560px] overflow-y-auto pr-1">
-            {topRiders.map((rider) => {
-              const medal = getRankMedal(rider.rank);
-              return (
-                <div
-                  key={`${rider.rank}-${rider.name}`}
-                  className={`flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 hover:scale-[1.01] ${
-                    rider.isSelf
-                      ? "bg-orange-50 border-orange-200 dark:bg-orange-950/20 dark:border-orange-500/30"
-                      : "bg-slate-50/60 border-slate-100 dark:bg-slate-950/30 dark:border-slate-800/80 hover:border-slate-200 dark:hover:border-slate-700"
-                  }`}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    {/* Rank / Medal */}
-                    <div className="w-8 shrink-0 text-center font-mono font-black text-sm text-slate-400">
-                      {medal || <span className="text-slate-500">{rider.rank}</span>}
-                    </div>
+            {loading ? (
+              <div className="text-center py-10 text-xs font-bold text-slate-400">กำลังโหลดอันดับ...</div>
+            ) : (
+              topRiders.map((rider) => {
+                const medal = getRankMedal(rider.rank);
+                return (
+                  <div
+                    key={`${rider.rank}-${rider.name}`}
+                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 hover:scale-[1.01] ${
+                      rider.isSelf
+                        ? "bg-orange-50 border-orange-200 dark:bg-orange-950/20 dark:border-orange-500/30"
+                        : "bg-slate-50/60 border-slate-100 dark:bg-slate-950/30 dark:border-slate-800/80 hover:border-slate-200 dark:hover:border-slate-700"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      {/* Rank / Medal */}
+                      <div className="w-8 shrink-0 text-center font-mono font-black text-sm text-slate-400">
+                        {medal || <span className="text-slate-500">{rider.rank}</span>}
+                      </div>
 
-                    {/* Avatar */}
-                    <div className={`h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-xs font-black text-white shadow-sm ${
-                      rider.isSelf ? "bg-orange-500" : rider.rank <= 3 ? "bg-gradient-to-tr from-yellow-400 to-amber-500" : "bg-slate-400 dark:bg-slate-600"
-                    }`}>
-                      {rider.name.charAt(0)}
-                    </div>
+                      {/* Avatar */}
+                      <div className={`h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-xs font-black text-white shadow-sm ${
+                        rider.isSelf ? "bg-orange-500" : rider.rank <= 3 ? "bg-gradient-to-tr from-yellow-400 to-amber-500" : "bg-slate-400 dark:bg-slate-600"
+                      }`}>
+                        {rider.name.charAt(0)}
+                      </div>
 
-                    {/* User info */}
-                    <div className="min-w-0">
-                      <h4 className="font-bold text-sm text-slate-800 dark:text-white leading-tight truncate max-w-[140px] sm:max-w-none">
-                        {rider.name}
-                        {rider.isSelf && (
-                          <span className="text-[9px] bg-orange-500 text-white font-bold px-1.5 py-0.5 rounded-full ml-1.5">YOU</span>
-                        )}
-                      </h4>
-                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                        <span className={`inline-block border text-[8px] font-black px-1.5 py-0.5 rounded ${getBadgeStyle(rider.badge)}`}>
-                          {rider.badge}
-                        </span>
-                        <span className="text-[9px] text-slate-400 font-bold">{rider.distance} km</span>
+                      {/* User info */}
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-sm text-slate-800 dark:text-white leading-tight truncate max-w-[140px] sm:max-w-none">
+                          {rider.name}
+                          {rider.isSelf && (
+                            <span className="text-[9px] bg-orange-500 text-white font-bold px-1.5 py-0.5 rounded-full ml-1.5">YOU</span>
+                          )}
+                        </h4>
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <span className={`inline-block border text-[8px] font-black px-1.5 py-0.5 rounded ${getBadgeStyle(rider.badge)}`}>
+                            {rider.badge}
+                          </span>
+                          <span className="text-[9px] text-slate-400 font-bold">{rider.distance} km</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Points & Safety score */}
-                  <div className="text-right shrink-0">
-                    <span className="font-mono text-sm font-black text-slate-800 dark:text-white block">
-                      {rider.points.toLocaleString()} pts
-                    </span>
-                    <span className="text-[9px] font-bold text-slate-400">
-                      Safety: {rider.score}/100
-                    </span>
+                    {/* Points & Safety score */}
+                    <div className="text-right shrink-0">
+                      <span className="font-mono text-sm font-black text-slate-800 dark:text-white block">
+                        {rider.points.toLocaleString()} pts
+                      </span>
+                      <span className="text-[9px] font-bold text-slate-400">
+                        Safety: {rider.score}/100
+                      </span>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
 
@@ -180,7 +248,7 @@ export default function RankingPage() {
             สูตรคำนวณแต้มสะสม
           </p>
           <p className="text-lg font-black text-slate-900 dark:text-white font-mono">
-            แต้มสะสม = 100 + (ระยะทาง km × 10)
+            แต้มสะสม = 100 + (ระยะทาง km × 10) + คะแนนความปลอดภัย
           </p>
           <p className="text-xs text-slate-400 font-semibold">
             ขับขี่ปลอดภัย สวมหมวก ไม่เกิน 80 กม./ชม. เพื่อรักษาคะแนนสูงสุด
