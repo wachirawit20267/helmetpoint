@@ -309,12 +309,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (unsubTripsRef.current)   { unsubTripsRef.current();   unsubTripsRef.current = null;   }
 
       if (fbUser) {
+        // Load from LocalStorage cache first for instant load
+        const cached = localStorage.getItem("user_profile");
+        if (cached) {
+          try {
+            setUser(JSON.parse(cached));
+          } catch (e) {}
+        }
+
         // Listen to Firestore profile
         const userDocRef = doc(db, "users", fbUser.uid);
         unsubProfileRef.current = onSnapshot(userDocRef, async (snap) => {
           if (snap.exists()) {
             const data = snap.data() as UserProfile;
             setUser(data);
+            localStorage.setItem("user_profile", JSON.stringify(data));
+            
             // Auto-reconnect helmet if the user's profile has a helmetId
             setHelmetStatus((prev) => {
               if (data.helmetId && (prev === "disconnected" || prev === "off")) {
@@ -363,6 +373,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         setHelmetStatus("off");
         setHistory([]);
+        localStorage.removeItem("user_profile");
       }
     });
 
@@ -513,6 +524,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     setHelmetStatus("off");
     setHistory([]);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("user_profile");
+    }
   };
 
   // Helmet Bindings

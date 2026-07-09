@@ -37,8 +37,21 @@ export async function registerUser(
     createdAt: new Date().toISOString(),
   };
 
-  // 2. Write profile to Firestore
-  await setDoc(doc(db, "users", credential.user.uid), userDoc);
+  // 2. Write profile to Firestore with a 3.5s timeout fallback.
+  // Save to LocalStorage immediately so that the front-end has the data instantly.
+  if (typeof window !== "undefined") {
+    localStorage.setItem("user_profile", JSON.stringify(userDoc));
+  }
+
+  try {
+    const firestoreWrite = setDoc(doc(db, "users", credential.user.uid), userDoc);
+    const timeout = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error("firestore-timeout")), 3500)
+    );
+    await Promise.race([firestoreWrite, timeout]);
+  } catch (err) {
+    console.warn("Firestore write delayed or offline, relying on local cache:", err);
+  }
 
   return { user: credential.user, profile: userDoc };
 }
