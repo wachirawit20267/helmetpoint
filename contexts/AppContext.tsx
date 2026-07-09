@@ -311,7 +311,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (fbUser) {
         // Listen to Firestore profile
         const userDocRef = doc(db, "users", fbUser.uid);
-        unsubProfileRef.current = onSnapshot(userDocRef, (snap) => {
+        unsubProfileRef.current = onSnapshot(userDocRef, async (snap) => {
           if (snap.exists()) {
             const data = snap.data() as UserProfile;
             setUser(data);
@@ -323,6 +323,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               }
               return prev;
             });
+          } else {
+            // Fallback: If document does not exist, create it with default data to prevent "null user / data lost" issues
+            const defaultDoc = {
+              firstName: fbUser.displayName ? fbUser.displayName.split(" ")[0] : "ผู้ใช้งาน",
+              lastName: fbUser.displayName ? fbUser.displayName.split(" ").slice(1).join(" ") : "",
+              email: fbUser.email || "",
+              phone: fbUser.phoneNumber || "",
+              birthday: "",
+              career: "Other",
+              points: 100,
+              safetyScore: 100,
+              distance: 0,
+              helmetId: "",
+              createdAt: new Date().toISOString(),
+            };
+            try {
+              await setDoc(userDocRef, defaultDoc);
+            } catch (err) {
+              console.error("Failed to write fallback user doc:", err);
+            }
           }
         });
 

@@ -37,17 +37,8 @@ export async function registerUser(
     createdAt: new Date().toISOString(),
   };
 
-  // 2. Write profile to Firestore with a 2.5s defensive timeout.
-  // Even if Firestore is slow or offline, the user is already authenticated, so we let them proceed.
-  try {
-    const firestoreWrite = setDoc(doc(db, "users", credential.user.uid), userDoc);
-    const timeout = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error("firestore-timeout")), 2500)
-    );
-    await Promise.race([firestoreWrite, timeout]);
-  } catch (err) {
-    console.warn("Firestore profile write delayed, proceeding to dashboard.", err);
-  }
+  // 2. Write profile to Firestore
+  await setDoc(doc(db, "users", credential.user.uid), userDoc);
 
   return { user: credential.user, profile: userDoc };
 }
@@ -56,19 +47,11 @@ export async function loginUser(email: string, password: string) {
   const credential = await signInWithEmailAndPassword(auth, email, password);
   const docRef = doc(db, "users", credential.user.uid);
   
-  // Fetch user profile with a 2.5s timeout fallback
+  // Fetch user profile directly
+  const snap = await getDoc(docRef);
   let profileData: any = null;
-  try {
-    const fetchDoc = getDoc(docRef);
-    const timeout = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error("firestore-timeout")), 2500)
-    );
-    const snap = await Promise.race([fetchDoc, timeout]) as any;
-    if (snap && snap.exists()) {
-      profileData = snap.data();
-    }
-  } catch (err) {
-    console.warn("Firestore profile fetch delayed, fallback to default details.", err);
+  if (snap.exists()) {
+    profileData = snap.data();
   }
 
   if (profileData) {

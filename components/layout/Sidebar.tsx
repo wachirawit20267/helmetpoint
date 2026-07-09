@@ -11,7 +11,7 @@ interface SidebarProps {
 
 export default function Sidebar({ onClose }: SidebarProps) {
   const pathname = usePathname();
-  const { user, t, mockLogout } = useApp();
+  const { user, t, logout } = useApp();
 
   const menus = [
     {
@@ -102,7 +102,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
 
         {/* Logout */}
         <button
-          onClick={() => { mockLogout(); onClose?.(); }}
+          onClick={() => { logout(); onClose?.(); }}
           className="w-full flex items-center gap-3 rounded-xl px-4 py-3 font-medium text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-all duration-300 border border-transparent hover:border-red-500/20"
         >
           <span className="text-lg">🚪</span>
