@@ -1,0 +1,97 @@
+import { auth, db } from "@/lib/firebase";
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  signOut 
+} from "firebase/auth";
+import { doc, setDoc, getDoc } from "firebase/firestore";
+import { UserProfile } from "@/contexts/AppContext";
+
+export async function registerUser(
+  profile: UserProfile & { password?: string }
+) {
+  if (!profile.email || !profile.password) {
+    throw new Error("Missing email or password");
+  }
+
+  // 1. Create Firebase Auth credential (this must succeed)
+  const credential = await createUserWithEmailAndPassword(
+    auth,
+    profile.email,
+    profile.password
+  );
+
+  const userDoc = {
+    uid: credential.user.uid,
+    firstName: profile.firstName,
+    lastName: profile.lastName,
+    birthday: profile.birthday,
+    career: profile.career,
+    email: profile.email,
+    phone: profile.phone,
+    password: profile.password, // Saved in Firestore to support OTP auto-sign-in fallback
+    helmetId: "", 
+    photoURL: "", 
+    points: 100, 
+    safetyScore: 100, 
+    createdAt: new Date().toISOString(),
+  };
+
+  // 2. Write profile to Firestore with a 2.5s defensive timeout.
+  // Even if Firestore is slow or offline, the user is already authenticated, so we let them proceed.
+  try {
+    const firestoreWrite = setDoc(doc(db, "users", credential.user.uid), userDoc);
+    const timeout = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error("firestore-timeout")), 2500)
+    );
+    await Promise.race([firestoreWrite, timeout]);
+  } catch (err) {
+    console.warn("Firestore profile write delayed, proceeding to dashboard.", err);
+  }
+
+  return { user: credential.user, profile: userDoc };
+}
+
+export async function loginUser(email: string, password: string) {
+  const credential = await signInWithEmailAndPassword(auth, email, password);
+  const docRef = doc(db, "users", credential.user.uid);
+  
+  // Fetch user profile with a 2.5s timeout fallback
+  let profileData: any = null;
+  try {
+    const fetchDoc = getDoc(docRef);
+    const timeout = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error("firestore-timeout")), 2500)
+    );
+    const snap = await Promise.race([fetchDoc, timeout]) as any;
+    if (snap && snap.exists()) {
+      profileData = snap.data();
+    }
+  } catch (err) {
+    console.warn("Firestore profile fetch delayed, fallback to default details.", err);
+  }
+
+  if (profileData) {
+    return { user: credential.user, profile: profileData as UserProfile };
+  }
+  
+  return { 
+    user: credential.user, 
+    profile: {
+      firstName: "User",
+      lastName: "",
+      email: credential.user.email || email,
+      phone: "",
+      birthday: "",
+      career: "Other",
+      helmetId: "",
+      photoURL: "",
+      points: 100,
+      safetyScore: 100,
+    } 
+  };
+}
+
+export async function logoutUser() {
+  await signOut(auth);
+}
