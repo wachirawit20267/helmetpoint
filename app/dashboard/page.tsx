@@ -339,7 +339,7 @@ export default function DashboardPage() {
                 <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl flex flex-col">
                   <span className="text-[9px] text-slate-400 font-bold">{t("distance")}</span>
                   <span className="text-sm font-black text-slate-900 dark:text-white mt-1 font-mono">
-                    {helmetStatus === "connected" ? (helmetData.distance * 0.05).toFixed(2) : "0.00"} km
+                    {helmetStatus === "connected" ? (helmetData.distance).toFixed(2) : "0.00"} km
                   </span>
                 </div>
 
@@ -353,14 +353,14 @@ export default function DashboardPage() {
                 <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl flex flex-col">
                   <span className="text-[9px] text-slate-400 font-bold">{t("ridingTime")}</span>
                   <span className="text-sm font-black text-slate-900 dark:text-white mt-1 font-mono">
-                    {helmetStatus === "connected" ? "32 mins" : "0 min"}
+                    {helmetStatus === "connected" ? `${user?.ridingTime ?? 0} นาที` : "0 นาที"}
                   </span>
                 </div>
 
                 <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl flex flex-col">
                   <span className="text-[9px] text-slate-400 font-bold">{t("wearCount")}</span>
                   <span className="text-sm font-black text-slate-900 dark:text-white mt-1 font-mono">
-                    {helmetStatus === "connected" ? "2 ครั้ง" : "0 ครั้ง"}
+                    {helmetStatus === "connected" ? `${user?.wearCount ?? 0} ครั้ง` : "0 ครั้ง"}
                   </span>
                 </div>
               </div>

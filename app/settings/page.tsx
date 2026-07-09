@@ -3,8 +3,9 @@
 import { useState } from "react";
 import AppLayout from "@/components/layout/AppLayout";
 import { useApp } from "@/contexts/AppContext";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 
 // Rank cutoff data
 const RANK_TIERS = [
@@ -48,6 +49,35 @@ export default function SettingsPage() {
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
   const [guideModal, setGuideModal] = useState<GuideModal>("none");
+
+  // Inspector state
+  const [inspectStatus, setInspectStatus] = useState<string>("ยังไม่ได้ตรวจสอบ");
+  const [inspectData, setInspectData] = useState<string>("");
+
+  const handleTestDatabase = async () => {
+    setInspectStatus("กำลังตรวจสอบข้อมูลเรียลไทม์...");
+    setInspectData("");
+    const fbUser = auth.currentUser;
+    if (!fbUser) {
+      setInspectStatus("🔴 ล้มเหลว: ไม่พบสถานะการล็อกอินใน Firebase Authentication");
+      return;
+    }
+
+    try {
+      const userDocRef = doc(db, "users", fbUser.uid);
+      const snap = await getDoc(userDocRef);
+      if (snap.exists()) {
+        setInspectStatus("🟢 บันทึกข้อมูลสำเร็จจริง: ข้อมูลมีอยู่บน Cloud Firestore!");
+        setInspectData(JSON.stringify(snap.data(), null, 2));
+      } else {
+        setInspectStatus("🟡 เชื่อมต่อสำเร็จ: แต่ยังไม่มีเอกสารโปรไฟล์บนคลาวด์ (ไปหน้าแรกเพื่อสแกนสร้าง)");
+        setInspectData(`Firebase Auth UID: ${fbUser.uid}`);
+      }
+    } catch (err: any) {
+      setInspectStatus(`🔴 ตรวจสอบล้มเหลว: ไม่สามารถสื่อสารกับ Firebase ได้`);
+      setInspectData(err.message || String(err));
+    }
+  };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -259,6 +289,41 @@ export default function SettingsPage() {
               {t("changePassword")}
             </button>
           </form>
+        </div>
+
+        {/* Firebase DB Inspector */}
+        <div className="rounded-[2rem] bg-white dark:bg-slate-900 p-8 border border-slate-100 dark:border-slate-800 shadow-lg space-y-4">
+          <h3 className="text-lg font-black text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-3 mb-2 flex items-center justify-between">
+            <span>⚙️ ตัวตรวจสอบฐานข้อมูล (Database Inspector)</span>
+            <span className="text-[10px] text-emerald-500 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">Active</span>
+          </h3>
+
+          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
+            คุณสามารถตรวจสอบสถานะการบันทึกข้อมูลและดึงข้อมูลโปรไฟล์เรียลไทม์จากระบบหลัก Cloud Firestore เพื่อยืนยันว่าข้อมูลไม่สูญหายและบันทึกอยู่บนคลาวด์ของจริง
+          </p>
+
+          <button
+            onClick={handleTestDatabase}
+            className="w-full rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 hover:bg-orange-50 dark:hover:bg-orange-950/20 py-3 text-xs font-bold text-slate-700 dark:text-slate-200 transition-all hover:scale-[1.01]"
+          >
+            🔍 ตรวจสอบความถูกต้องของข้อมูลใน Firestore
+          </button>
+
+          <div className="space-y-2 mt-2">
+            <div className="text-xs font-bold text-slate-800 dark:text-slate-200 flex justify-between bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
+              <span>สถานะเชื่อมต่อ:</span>
+              <span className="font-mono">{inspectStatus}</span>
+            </div>
+            
+            {inspectData && (
+              <div className="space-y-1.5 animate-fade-in">
+                <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">ข้อมูล JSON จาก Firestore:</span>
+                <pre className="text-[10px] font-mono p-4 bg-slate-950 text-emerald-400 rounded-2xl overflow-x-auto max-h-48 border border-slate-800">
+                  {inspectData}
+                </pre>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Logout */}
